@@ -1,0 +1,639 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Google Maps — Batch Media Downloader</title>
+<style>
+  :root {
+    --bg: #0d1117;
+    --surface: #161b22;
+    --surface-2: #1c2128;
+    --border: #30363d;
+    --text: #e6edf3;
+    --text-muted: #8b949e;
+    --accent: #58a6ff;
+    --accent-hover: #79b8ff;
+    --accent-video: #f78166;
+    --accent-video-hover: #fa9778;
+    --success: #3fb950;
+    --error: #f85149;
+    --warning: #d29922;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    min-height: 100vh;
+    padding: 40px 20px;
+    line-height: 1.5;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  .container { max-width: 820px; margin: 0 auto; }
+
+  header { margin-bottom: 28px; }
+
+  h1 {
+    font-size: 30px;
+    font-weight: 700;
+    letter-spacing: -0.02em;
+    margin-bottom: 6px;
+  }
+
+  .subtitle { color: var(--text-muted); font-size: 15px; }
+
+  .section-title {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    font-size: 18px;
+    font-weight: 600;
+    margin: 32px 0 12px;
+    padding-bottom: 10px;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .section-title .accent-bar {
+    width: 4px;
+    height: 20px;
+    border-radius: 2px;
+    background: var(--accent);
+  }
+
+  .section-title.videos .accent-bar { background: var(--accent-video); }
+
+  .card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 24px;
+    margin-bottom: 14px;
+  }
+
+  label {
+    display: block;
+    font-size: 12px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: var(--text-muted);
+    margin-bottom: 8px;
+  }
+
+  textarea {
+    width: 100%;
+    min-height: 180px;
+    padding: 14px;
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    color: var(--text);
+    font-family: "SF Mono", "Consolas", "Menlo", monospace;
+    font-size: 12.5px;
+    line-height: 1.65;
+    resize: vertical;
+    transition: border 0.15s, box-shadow 0.15s;
+  }
+
+  textarea:focus {
+    outline: none;
+    border-color: var(--accent);
+    box-shadow: 0 0 0 3px rgba(88, 166, 255, 0.15);
+  }
+
+  .videos-card textarea:focus {
+    border-color: var(--accent-video);
+    box-shadow: 0 0 0 3px rgba(247, 129, 102, 0.15);
+  }
+
+  textarea::placeholder { color: #4a525a; }
+
+  .controls {
+    display: flex;
+    gap: 12px;
+    margin-top: 18px;
+    align-items: flex-end;
+  }
+
+  .field { flex-shrink: 0; }
+
+  select {
+    background: var(--bg);
+    color: var(--text);
+    border: 1px solid var(--border);
+    padding: 10px 14px;
+    border-radius: 8px;
+    font-size: 14px;
+    min-width: 220px;
+    cursor: pointer;
+  }
+
+  select:focus { outline: none; border-color: var(--accent); }
+
+  button {
+    background: var(--accent);
+    color: #0a0e13;
+    border: none;
+    padding: 12px 28px;
+    border-radius: 8px;
+    font-size: 14px;
+    font-weight: 600;
+    cursor: pointer;
+    flex: 1;
+    transition: background 0.15s, transform 0.1s;
+  }
+
+  button:hover:not(:disabled) { background: var(--accent-hover); }
+  button:active:not(:disabled) { transform: scale(0.98); }
+  button:disabled { opacity: 0.5; cursor: not-allowed; }
+
+  button.videos { background: var(--accent-video); }
+  button.videos:hover:not(:disabled) { background: var(--accent-video-hover); }
+
+  .progress-bar {
+    height: 6px;
+    background: var(--surface-2);
+    border-radius: 3px;
+    overflow: hidden;
+    margin: 14px 0 18px;
+  }
+
+  .progress-fill {
+    height: 100%;
+    background: linear-gradient(90deg, var(--accent), var(--success));
+    width: 0;
+    transition: width 0.3s ease;
+  }
+
+  .videos-card .progress-fill {
+    background: linear-gradient(90deg, var(--accent-video), var(--success));
+  }
+
+  .log {
+    max-height: 360px;
+    overflow-y: auto;
+    font-family: "SF Mono", "Consolas", monospace;
+    font-size: 13px;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    background: var(--bg);
+  }
+
+  .log-entry {
+    padding: 8px 14px;
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+
+  .log-entry:last-child { border-bottom: none; }
+
+  .log-icon { width: 16px; text-align: center; flex-shrink: 0; }
+  .log-icon.ok { color: var(--success); }
+  .log-icon.err { color: var(--error); }
+  .log-icon.info { color: var(--accent); }
+  .log-icon.pending { color: var(--warning); }
+
+  .log-text { flex: 1; color: var(--text-muted); font-size: 12.5px; }
+  .log-text strong { color: var(--text); font-weight: 500; }
+  .log-text em { opacity: 0.55; font-style: normal; font-size: 11px; }
+
+  .log-download {
+    display: inline-block;
+    padding: 3px 10px;
+    background: var(--accent);
+    color: #0a0e13;
+    text-decoration: none;
+    border-radius: 4px;
+    font-weight: 600;
+    font-size: 11px;
+    flex-shrink: 0;
+    transition: background 0.15s;
+  }
+
+  .log-download:hover { background: var(--accent-hover); }
+  .log-download.video { background: var(--accent-video); }
+  .log-download.video:hover { background: var(--accent-video-hover); }
+
+  .summary {
+    margin-top: 14px;
+    padding: 14px 16px;
+    background: rgba(63, 185, 80, 0.08);
+    border: 1px solid var(--success);
+    border-radius: 8px;
+    color: var(--text);
+    font-size: 14px;
+  }
+
+  .summary.has-errors {
+    background: rgba(210, 153, 34, 0.08);
+    border-color: var(--warning);
+  }
+
+  details {
+    margin-top: 24px;
+    color: var(--text-muted);
+    font-size: 13px;
+    padding: 14px 18px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+  }
+
+  details summary {
+    cursor: pointer;
+    user-select: none;
+    color: var(--accent);
+    font-weight: 500;
+  }
+
+  details p { margin-top: 10px; line-height: 1.7; }
+  details p + p { margin-top: 8px; }
+
+  code {
+    background: var(--bg);
+    padding: 2px 6px;
+    border-radius: 4px;
+    font-size: 11.5px;
+    color: var(--accent);
+    font-family: "SF Mono", monospace;
+  }
+
+  .stats {
+    display: flex;
+    gap: 16px;
+    margin-bottom: 8px;
+    font-size: 13px;
+    color: var(--text-muted);
+  }
+
+  .stats span { display: flex; align-items: center; gap: 6px; }
+  .stats strong { color: var(--text); font-weight: 600; }
+
+  .note {
+    margin-top: 10px;
+    font-size: 12px;
+    color: var(--text-muted);
+    padding: 8px 12px;
+    background: rgba(88, 166, 255, 0.06);
+    border-left: 2px solid var(--accent);
+    border-radius: 4px;
+  }
+</style>
+</head>
+<body>
+<div class="container">
+
+  <header>
+    <h1>🗺️ Google Maps — Batch Media Downloader</h1>
+    <p class="subtitle">Colle des URLs Google Maps · télécharge photos et vidéos en pleine résolution, fichier par fichier.</p>
+  </header>
+
+  <!-- ─────────────────────────────────────────── -->
+  <!-- SECTION PHOTOS                              -->
+  <!-- ─────────────────────────────────────────── -->
+  <h2 class="section-title"><span class="accent-bar"></span>📸 Photos</h2>
+
+  <div class="card photos-card">
+    <label for="photo-urls">URLs Google Maps photos (une par ligne)</label>
+    <textarea id="photo-urls" placeholder="Collez vos URLs photos ici, une par ligne. Formats acceptés :
+
+https://www.google.com/maps/uv?pb=!1sAF1QipXXXXXX!2e10...
+https://lh3.googleusercontent.com/p/AF1QipYYYYYY=w800
+https://lh3.ggpht.com/p/AF1QipZZZZZZ=s400"></textarea>
+
+    <div class="controls">
+      <div class="field">
+        <label for="photo-quality">Résolution</label>
+        <select id="photo-quality">
+          <option value="s0" selected>Originale (max disponible)</option>
+          <option value="s4000">4000 px</option>
+          <option value="s2000">2000 px</option>
+          <option value="s1600">1600 px</option>
+          <option value="s1200">1200 px</option>
+        </select>
+      </div>
+      <button id="photo-download">⬇ Télécharger les photos</button>
+    </div>
+    <div class="note">
+      Les fichiers seront nommés <code>photo_01.jpg</code>, <code>photo_02.jpg</code>, etc.
+      Le navigateur demandera la permission pour les téléchargements multiples — accepter.
+    </div>
+  </div>
+
+  <div class="card photos-card" id="photo-results" style="display:none">
+    <label>Progression</label>
+    <div class="stats">
+      <span>📥 <strong id="photo-stat-total">0</strong> total</span>
+      <span style="color:var(--success)">✓ <strong id="photo-stat-ok">0</strong> OK</span>
+      <span style="color:var(--error)">✗ <strong id="photo-stat-fail">0</strong> échec</span>
+    </div>
+    <div class="progress-bar"><div class="progress-fill" id="photo-progress"></div></div>
+    <div class="log" id="photo-log"></div>
+  </div>
+
+  <!-- ─────────────────────────────────────────── -->
+  <!-- SECTION VIDÉOS                              -->
+  <!-- ─────────────────────────────────────────── -->
+  <h2 class="section-title videos"><span class="accent-bar"></span>🎬 Vidéos</h2>
+
+  <div class="card videos-card">
+    <label for="video-urls">URLs Google Maps vidéos (une par ligne)</label>
+    <textarea id="video-urls" placeholder="Collez vos URLs vidéos ici, une par ligne. Formats acceptés :
+
+https://www.google.com/maps/uv?pb=!1sAF1QipXXXXXX!2e10!3e11...
+https://lh3.googleusercontent.com/p/AF1QipYYYYYY=m18
+https://lh3.ggpht.com/p/AF1QipZZZZZZ=m22"></textarea>
+
+    <div class="controls">
+      <div class="field">
+        <label for="video-quality">Qualité vidéo</label>
+        <select id="video-quality">
+          <option value="m18" selected>m18 (standard — comme mapsdownloader.com)</option>
+          <option value="m22">m22 (haute qualité — pas toujours disponible)</option>
+          <option value="m37">m37 (très haute — rarement disponible)</option>
+        </select>
+      </div>
+      <button id="video-download" class="videos">⬇ Télécharger les vidéos</button>
+    </div>
+    <div class="note">
+      Les fichiers seront nommés <code>video_01.mp4</code>, <code>video_02.mp4</code>, etc.
+      Les vidéos peuvent être lourdes (10–100 MB chacune) — soyez patient.
+    </div>
+  </div>
+
+  <div class="card videos-card" id="video-results" style="display:none">
+    <label>Progression</label>
+    <div class="stats">
+      <span>📥 <strong id="video-stat-total">0</strong> total</span>
+      <span style="color:var(--success)">✓ <strong id="video-stat-ok">0</strong> OK</span>
+      <span style="color:var(--error)">✗ <strong id="video-stat-fail">0</strong> échec</span>
+    </div>
+    <div class="progress-bar"><div class="progress-fill" id="video-progress"></div></div>
+    <div class="log" id="video-log"></div>
+  </div>
+
+  <!-- ─────────────────────────────────────────── -->
+  <!-- AIDE                                        -->
+  <!-- ─────────────────────────────────────────── -->
+  <details>
+    <summary>Comment ça marche ?</summary>
+    <p>
+      <strong>Photos :</strong> l'outil extrait l'ID via le pattern <code>!1s{ID}!</code>
+      (URLs viewer Maps) ou directement depuis les URLs <code>lh3.googleusercontent.com/p/{ID}</code>.
+      Il reconstruit l'URL pleine résolution sur <code>lh3.ggpht.com/p/{ID}=s0</code>.
+    </p>
+    <p>
+      <strong>Vidéos :</strong> même principe avec un suffixe spécifique.
+      <code>=m18</code> est le standard universellement disponible (utilisé par mapsdownloader.com).
+      <code>=m22</code> et <code>=m37</code> existent en haute qualité mais ne sont pas toujours présents — si HTTP 404, retomber sur m18.
+    </p>
+    <p>
+      <strong>Fetch :</strong> appel direct au CDN Google (pas de proxy).
+      Si le navigateur bloque pour CORS, l'URL s'ouvre automatiquement dans un nouvel onglet
+      (clic-droit → Enregistrer pour finaliser). Aucun ZIP, aucun serveur tiers, aucune donnée externe.
+    </p>
+  </details>
+
+</div>
+
+<script>
+// ─────────────────────────────────────────────────────────────
+// Parsing — extrait l'ID depuis n'importe quel format d'URL
+// ─────────────────────────────────────────────────────────────
+function extractId(url) {
+  url = (url || '').trim();
+  if (!url) return null;
+
+  // Format A : URL du viewer Google Maps avec !1s{ID}!
+  let m = url.match(/!1s([^!]+)!/);
+  if (m) return m[1];
+
+  // Format B : URL directe lh3.googleusercontent.com ou lh3.ggpht.com
+  m = url.match(/lh3\.(?:googleusercontent|ggpht)\.com\/(?:p\/)?([^=?&\s/]+)/);
+  if (m) return m[1];
+
+  return null;
+}
+
+function buildUrl(id, suffix) {
+  return `https://lh3.ggpht.com/p/${id}=${suffix}`;
+}
+
+// ─────────────────────────────────────────────────────────────
+// Fetch direct + fallback window.open() (approche mapsdownloader.com)
+// Pas de proxy CORS, pas de validation MIME — Google sert tout direct.
+// ─────────────────────────────────────────────────────────────
+async function fetchDirect(url) {
+  try {
+    const r = await fetch(url);
+    if (!r.ok) return { ok: false, blocked: false, status: r.status };
+    const blob = await r.blob();
+    if (blob.size < 1000) return { ok: false, blocked: false, status: 'small' };
+    return { ok: true, blob, source: 'direct' };
+  } catch (e) {
+    // Network/CORS error
+    return { ok: false, blocked: true, error: e.message };
+  }
+}
+
+// Fallback : ouvre l'URL dans un nouvel onglet — le navigateur télécharge
+// directement les fichiers media servis avec Content-Disposition ou laisse
+// l'utilisateur faire clic-droit > Enregistrer.
+function openInNewTab(url) {
+  window.open(url, '_blank', 'noopener,noreferrer');
+}
+
+// ─────────────────────────────────────────────────────────────
+// Déclenche le téléchargement depuis un blob URL existant
+// (le blob URL n'est PAS révoqué — il reste valide pour le
+//  bouton "Download" manuel dans le log)
+// ─────────────────────────────────────────────────────────────
+function triggerDownloadFromBlobUrl(blobUrl, filename) {
+  const a = document.createElement('a');
+  a.href = blobUrl;
+  a.download = filename;
+  a.style.display = 'none';
+  document.body.appendChild(a);
+  a.click();
+  setTimeout(() => document.body.removeChild(a), 100);
+  // PAS de URL.revokeObjectURL — laissé en vie pour le bouton manuel
+}
+
+// ─────────────────────────────────────────────────────────────
+// UI helpers
+// ─────────────────────────────────────────────────────────────
+function addLog(logEl, icon, text, type = 'info') {
+  const entry = document.createElement('div');
+  entry.className = 'log-entry';
+  entry.innerHTML = `<span class="log-icon ${type}">${icon}</span><span class="log-text">${text}</span>`;
+  logEl.appendChild(entry);
+  logEl.scrollTop = logEl.scrollHeight;
+  return entry;
+}
+
+// ─────────────────────────────────────────────────────────────
+// Fonction générique de batch download
+// ─────────────────────────────────────────────────────────────
+async function runBatch({
+  textareaEl, qualityEl, buttonEl, resultsCardEl,
+  logEl, progressEl, statTotal, statOk, statFail,
+  prefix, extension, label, buttonOriginalText, isVideo
+}) {
+  const urls = textareaEl.value.split('\n').map(s => s.trim()).filter(Boolean);
+
+  if (urls.length === 0) {
+    alert(`Colle au moins une URL Google Maps ${label}.`);
+    return;
+  }
+
+  resultsCardEl.style.display = 'block';
+  logEl.innerHTML = '';
+  progressEl.style.width = '0';
+  buttonEl.disabled = true;
+  buttonEl.textContent = '⏳ Téléchargement…';
+
+  const suffix = qualityEl.value;
+  let ok = 0, fail = 0;
+
+  statTotal.textContent = urls.length;
+  statOk.textContent = '0';
+  statFail.textContent = '0';
+
+  for (let i = 0; i < urls.length; i++) {
+    const url = urls[i];
+    const id = extractId(url);
+    const num = String(i + 1).padStart(2, '0');
+    const filename = `${prefix}_${num}.${extension}`;
+
+    if (!id) {
+      addLog(logEl, '✗', `<strong>${filename}</strong> — URL invalide (aucun ID trouvé)`, 'err');
+      fail++;
+      statFail.textContent = fail;
+      progressEl.style.width = ((i + 1) / urls.length * 100) + '%';
+      continue;
+    }
+
+    const entry = addLog(logEl, '⏳',
+      `<strong>${filename}</strong> — téléchargement… <em>(${id.slice(0, 18)}…)</em>`,
+      'pending');
+
+    // Détermine le suffixe à utiliser
+    // Pour vidéos: "auto" → "m18" (comme mapsdownloader.com)
+    let usedSuffix = suffix;
+    if (isVideo && suffix === 'auto') usedSuffix = 'm18';
+
+    const mediaUrl = buildUrl(id, usedSuffix);
+    const result = await fetchDirect(mediaUrl);
+
+    if (result.ok) {
+      // Succès fetch : créer un blob URL persistant + tenter auto-download + bouton manuel
+      const blobUrl = URL.createObjectURL(result.blob);
+      triggerDownloadFromBlobUrl(blobUrl, filename);
+
+      const kb = Math.round(result.blob.size / 1024);
+      const sizeStr = kb > 1024 ? `${(kb / 1024).toFixed(1)} MB` : `${kb} KB`;
+      const btnClass = isVideo ? 'log-download video' : 'log-download';
+
+      entry.innerHTML =
+        `<span class="log-icon ok">✓</span>` +
+        `<span class="log-text"><strong>${filename}</strong> — ${sizeStr} <em>=${usedSuffix}</em></span>` +
+        `<a href="${blobUrl}" download="${filename}" class="${btnClass}">📥 Download</a>`;
+      ok++;
+      statOk.textContent = ok;
+    } else if (result.blocked) {
+      // Fetch CORS bloqué → lien direct vers Google CDN (clic-droit → Enregistrer)
+      const btnClass = isVideo ? 'log-download video' : 'log-download';
+      entry.innerHTML =
+        `<span class="log-icon info">↗</span>` +
+        `<span class="log-text"><strong>${filename}</strong> — CORS bloqué, lien direct <em>=${usedSuffix}</em></span>` +
+        `<a href="${mediaUrl}" target="_blank" rel="noopener" download="${filename}" class="${btnClass}">📥 Ouvrir</a>`;
+      ok++;
+      statOk.textContent = ok;
+    } else {
+      // HTTP error (404 etc.) — afficher quand même le lien pour debug
+      entry.innerHTML =
+        `<span class="log-icon err">✗</span>` +
+        `<span class="log-text"><strong>${filename}</strong> — HTTP ${result.status} <em>=${usedSuffix}</em></span>` +
+        `<a href="${mediaUrl}" target="_blank" rel="noopener" class="log-download">🔗 URL</a>`;
+      fail++;
+      statFail.textContent = fail;
+    }
+
+    progressEl.style.width = ((i + 1) / urls.length * 100) + '%';
+
+    // Délai entre téléchargements pour éviter rate-limit et permettre au navigateur de gérer les fichiers
+    await new Promise(r => setTimeout(r, isVideo ? 500 : 250));
+  }
+
+  // ─── Résumé final ───
+  const summary = document.createElement('div');
+  summary.className = 'summary' + (fail > 0 ? ' has-errors' : '');
+  summary.innerHTML = `<strong>Terminé</strong> — ${ok} ${label}(s) OK · ${fail} échec(s) sur ${urls.length} URL(s)`;
+  logEl.appendChild(summary);
+
+  buttonEl.disabled = false;
+  buttonEl.textContent = buttonOriginalText;
+}
+
+// ─────────────────────────────────────────────────────────────
+// Setup PHOTOS
+// ─────────────────────────────────────────────────────────────
+const photoBtn = document.getElementById('photo-download');
+photoBtn.addEventListener('click', () => {
+  runBatch({
+    textareaEl:    document.getElementById('photo-urls'),
+    qualityEl:     document.getElementById('photo-quality'),
+    buttonEl:      photoBtn,
+    resultsCardEl: document.getElementById('photo-results'),
+    logEl:         document.getElementById('photo-log'),
+    progressEl:    document.getElementById('photo-progress'),
+    statTotal:     document.getElementById('photo-stat-total'),
+    statOk:        document.getElementById('photo-stat-ok'),
+    statFail:      document.getElementById('photo-stat-fail'),
+    prefix:        'photo',
+    extension:     'jpg',
+    label:         'photo',
+    buttonOriginalText: '⬇ Télécharger les photos',
+    isVideo:       false,
+  });
+});
+
+// ─────────────────────────────────────────────────────────────
+// Setup VIDÉOS
+// ─────────────────────────────────────────────────────────────
+const videoBtn = document.getElementById('video-download');
+videoBtn.addEventListener('click', () => {
+  runBatch({
+    textareaEl:    document.getElementById('video-urls'),
+    qualityEl:     document.getElementById('video-quality'),
+    buttonEl:      videoBtn,
+    resultsCardEl: document.getElementById('video-results'),
+    logEl:         document.getElementById('video-log'),
+    progressEl:    document.getElementById('video-progress'),
+    statTotal:     document.getElementById('video-stat-total'),
+    statOk:        document.getElementById('video-stat-ok'),
+    statFail:      document.getElementById('video-stat-fail'),
+    prefix:        'video',
+    extension:     'mp4',
+    label:         'vidéo',
+    buttonOriginalText: '⬇ Télécharger les vidéos',
+    isVideo:       true,
+  });
+});
+
+// Raccourci : Ctrl/Cmd + Entrée dans un textarea = lancer la section correspondante
+document.getElementById('photo-urls').addEventListener('keydown', e => {
+  if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') { e.preventDefault(); photoBtn.click(); }
+});
+document.getElementById('video-urls').addEventListener('keydown', e => {
+  if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') { e.preventDefault(); videoBtn.click(); }
+});
+</script>
+</body>
+</html>
